@@ -14,18 +14,18 @@
 // Descomentar para realizar Degug por el puerto serie
 #define DEBUG_Mando_OLR
 
-// RECEPTOR MAC Address
+// Gateway_ESPNOW MAC Address
 uint8_t broadcastAddress[] = {0x48, 0x3F, 0xDA, 0x95, 0x9D, 0x05};
-
-#define pulsador  D1            // pulsador del mando
-#define led       D4            // Led de control placa Wemos
 
 // Indica el número del mando del jugador a configurar: 
 // 1 -> Jugador 1   Rojo
 // 2 -> Jugador 2   Verde
 // 3 -> Jugador 3   Azul
 // 4 -> Jugador 4   Blanco
-#define JUGADOR 3
+#define JUGADOR 1
+
+#define pulsador  D1            // pulsador del mando
+#define led       D4            // Led de control placa Wemos
 
 // Estructura de los datos a enviar
 // Debe de ser la misma que el receptor
