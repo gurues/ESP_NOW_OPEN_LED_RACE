@@ -31,45 +31,23 @@
 */
 
  
-#include <Arduino.h>
-#include <ESP8266WiFi.h>
-#include <espnow.h>
-#include <Adafruit_NeoPixel.h>
-
-// Descomentar para realizar Degug por el puerto serie la parte de codigo ESP_NOW
-#define DEBUG_Gateway_OLR
-// Descomentar para realizar Degug por el puerto serie la parte de codigo Open Led Race
-#define DEBUG_OLR
-
-// Estructura de los datos a recibir
-// Debe de ser la misma que el o los emisores
-typedef struct struct_message {
-    int player;
-    bool pulso;
-} struct_message;
-
-// Estructura del mesaje recibido
-struct_message myData;
-
-//Variables globales control Jugador
-int Player_1 = 1;     
-int Player_2 = 1;
-int Player_3 = 1;
-int Player_4 = 1;
-
 // 2020/12/10 - Ver 0.9.6
 //   --see changelog.txt
 
 char const softwareId[] = "A4P0";  // A4P -> A = Open LED Race, 4P0 = Game ID (4P = 4 Players, 0=Type 0)
 char const version[] = "0.9.6";
 
-//gurues
-#define PIN_LED        D1   // R 500 ohms to DI pin for WS2812 and WS2813, for WS2813 BI pin of first LED to GND  ,  CAP 1000 uF to VCC 5v/GND,power supplie 5V 2A  
-#define PIN_AUDIO      D2   // through CAP 2uf to speaker 8 ohms
-#define led            D4   // Led de control placa Wemos
 
-//#define PIN_LED        2    // R 500 ohms to DI pin for WS2812 and WS2813, for WS2813 BI pin of first LED to GND  ,  CAP 1000 uF to VCC 5v/GND,power supplie 5V 2A
-//#define PIN_AUDIO      3    // through CAP 2uf to speaker 8 ohms
+#include <Arduino.h>
+#include <Adafruit_NeoPixel.h>
+#include <EEPROM.h>
+#include "olr-lib.h"
+#include "olr-param.h"
+#include "SoftTimer.h"
+#include "SerialCommand.h"
+
+#define PIN_LED        2    // R 500 ohms to DI pin for WS2812 and WS2813, for WS2813 BI pin of first LED to GND  ,  CAP 1000 uF to VCC 5v/GND,power supplie 5V 2A
+#define PIN_AUDIO      3    // through CAP 2uf to speaker 8 ohms
 
 #define REC_COMMAND_BUFLEN 32
 #define EOL            '\n' // End of Command char used in Protocol
@@ -102,6 +80,7 @@ enum loglevel {  // used in Serial Protocol "!" command (send log/error messageS
     ERROR = 3
 };
 
+
 enum resp{
   NOK   = -1,
   NOTHING = 0,
@@ -112,6 +91,8 @@ typedef struct ack{
   enum resp rp;
   char type;
 }ack_t;
+
+
 
 struct cfgcircuit{
     int outtunnel;
@@ -139,6 +120,7 @@ struct race{
     int               winner; 
 };
 
+
 byte SMOTOR=0;
 int TBEEP=0;
 int FBEEP=0;
@@ -154,6 +136,9 @@ static track_t tck;
 static int const eeadrInfo = 0; 
 
 char txbuff[64];
+
+
+
 
 static unsigned long lastmillis = 0;
 
@@ -821,99 +806,34 @@ boolean customDelayElapsed(){
 /*
  * 
  */
-
-
-/ Callback funcion que se ejecuta cuando el dato es recibido
-void OnDataRecv(uint8_t * mac_addr, uint8_t *incomingData, uint8_t len) {
-  
-  memcpy(&myData, incomingData, sizeof(myData));
-
-  #ifdef DEBUG_Gateway_OLR
-    char macStr[18];
-    Serial.print("Packet received from: ");
-    snprintf(macStr, sizeof(macStr), "%02x:%02x:%02x:%02x:%02x:%02x",
-            mac_addr[0], mac_addr[1], mac_addr[2], mac_addr[3], mac_addr[4], mac_addr[5]);
-    Serial.println(macStr);
-    Serial.printf("Player ID %u: %u bytes\n", myData.player, len);
-    Serial.printf("pulso value: %d \n", myData.pulso);
-    Serial.println();
-  #endif
-  
-  if (myData.player == 1){
-    Player_1 = myData.pulso;
-    digitalWrite (led,myData.pulso);
-  }
-  if (myData.player == 2){
-    Player_2 = myData.pulso;
-    digitalWrite (led, myData.pulso);
-  }
-  if (myData.player == 3){
-    Player_3 = myData.pulso;
-    digitalWrite (led, myData.pulso);
-  }
-  if (myData.player == 4){
-    Player_3 = myData.pulso;
-    digitalWrite (led, myData.pulso);
-  }
- 
-}
-
-//*********************************************************************
-
 void setup() {
 
   Serial.begin(115200);
-
-  pinMode (led, OUTPUT);
-  digitalWrite (led, HIGH);
-
-  // Configura el dispositivo como Wi-Fi Station
-  WiFi.mode(WIFI_STA);
-  WiFi.disconnect();
-
-  // Inicia protocolo ESP-NOW
-  if (esp_now_init() != 0) {
-    #ifdef DEBUG_Gateway_OLR
-      Serial.println("Error inicializando ESP-NOW");
-    #endif
-    return;
-  }
- 
-  // Se configura el disòsitivo como Receptor
-  esp_now_set_self_role(ESP_NOW_ROLE_SLAVE);
-  // Se registra callback de recepción de mensajes
-  esp_now_register_recv_cb(OnDataRecv);
-
-  #ifdef DEBUG_Gateway_OLR
-    Serial.println(" ");
-    Serial.println("INICIALIZADO GATEWAY ESPNOW OPEN LED RACE");
-  #endif
-
-  //randomSeed( analogRead(A6) + analogRead(A7) );
-  randomSeed( 300 );
-
+  randomSeed( analogRead(A6) + analogRead(A7) );
   controller_setup( );
   param_load( &tck.cfg );
 
   track = Adafruit_NeoPixel( tck.cfg.track.nled_total, PIN_LED, NEO_GRB + NEO_KHZ800 );
 
-  //controller_init( &switchs[0], DIGITAL_MODE, DIG_CONTROL_1 );
-  controller_init_esp_now( &switchs[0], ESP_NOW_MODE, Player_1 );
+  controller_init( &switchs[0], DIGITAL_MODE, DIG_CONTROL_1 );
   car_init( &cars[0], &switchs[0], COLOR1 );
-  //controller_init( &switchs[1], DIGITAL_MODE, DIG_CONTROL_2 );
-  controller_init_esp_now( &switchs[0], ESP_NOW_MODE, Player_2 );
+  controller_init( &switchs[1], DIGITAL_MODE, DIG_CONTROL_2 );
   car_init( &cars[1], &switchs[1], COLOR2 );
 
   race.numcars = 2;
 
-  //if( controller_isActive( DIG_CONTROL_3 )) {
-  //  controller_init( &switchs[2], DIGITAL_MODE, DIG_CONTROL_3 );
-  controller_init_esp_now( &switchs[0], ESP_NOW_MODE, Player_3 );
+  delay(3000);  // gurues -> Retraso para la configuración
+
+  if( controller_isActive( DIG_CONTROL_3 )) {
+    controller_init( &switchs[2], DIGITAL_MODE, DIG_CONTROL_3 );
     car_init( &cars[2], &switchs[2], COLOR3 );
     ++race.numcars;
-  //}
+  }
 
   if( controller_isActive( DIG_CONTROL_4 )) {
+    controller_init( &switchs[2], DIGITAL_MODE, DIG_CONTROL_3 );  // gurues 
+    car_init( &cars[2], &switchs[2], COLOR3 );                    // gurues
+    ++race.numcars;                                               // gurues
     controller_init( &switchs[3], DIGITAL_MODE, DIG_CONTROL_4 );
     car_init( &cars[3], &switchs[3], COLOR4 );
     ++race.numcars;
@@ -924,7 +844,7 @@ void setup() {
 
 
   // Check Box before Physic/Sound to allow user to have Box and Physics with no sound
-  if(digitalRead(DIG_CONTROL_2)==0 || tck.cfg.track.box_alwaysOn || (Player_2)==0 ) { //push switch 2 on reset for activate boxes (pit lane)
+  if(digitalRead(DIG_CONTROL_2)==0 || tck.cfg.track.box_alwaysOn ) { // push switch 2 on reset for activate boxes (pit lane)
     box_init( &tck );
     track_configure( &tck, tck.cfg.track.nled_total - tck.cfg.track.box_len );
     draw_box_entrypoint( &tck );
@@ -932,16 +852,19 @@ void setup() {
     track_configure( &tck, 0 );
   }
 
-if( digitalRead(DIG_CONTROL_1)==0  || tck.cfg.ramp.alwaysOn || (Player_1)==0 ) { //push switch 1 on reset for activate physics
-    ramp_init( &tck );    
-    draw_ramp( &tck );
-    track.show();
-    delay(2000);
-    if ( digitalRead( DIG_CONTROL_1 ) == 0 || (Player_1)==0 ) { //retain push switch  on reset for activate FX sound
-                                              SMOTOR=1;
-                                              tone(PIN_AUDIO,100);
-                                              }
-  }
+  if( digitalRead(DIG_CONTROL_1)==0  || tck.cfg.ramp.alwaysOn  ) { //push switch 1 on reset for activate physics
+      ramp_init( &tck );    
+      draw_ramp( &tck );
+      track.show();
+      delay(2000);
+      if ( digitalRead( DIG_CONTROL_1 ) == 0 ) { //retain push switch  on reset for activate FX sound
+                                                SMOTOR=1;
+                                                tone(PIN_AUDIO,100);
+                                                }
+    }
+    
+  SMOTOR=1; // gurues -> Activación del sonido motor
+  tone(PIN_AUDIO,100);
 
   race.cfg.startline  = tck.cfg.race.startline;// true;
   race.cfg.nlap       = tck.cfg.race.nlap;// NUMLAP; 

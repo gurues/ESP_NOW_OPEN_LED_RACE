@@ -8,32 +8,22 @@ static float const ACEL = 0.2;
 
 void controller_setup( void ) { 
   
-  //if( DIGITAL_MODE == false ){
-  if (ANALOG_MODE){
+  if( DIGITAL_MODE == false ){
     pinMode(PIN_VCC_ADC1, OUTPUT);
     pinMode(PIN_VCC_ADC2, OUTPUT);
     digitalWrite(PIN_VCC_ADC1, HIGH);
     digitalWrite(PIN_VCC_ADC2, HIGH);
   }
 
-  if (DIGITAL_MODE){//gurues
-    pinMode( DIG_CONTROL_1, INPUT_PULLUP); //pull up in adc
-    pinMode( DIG_CONTROL_2, INPUT_PULLUP);
-    pinMode( DIG_CONTROL_3, INPUT_PULLUP);
-    pinMode( DIG_CONTROL_4, INPUT_PULLUP);
-  }
-
+  pinMode( DIG_CONTROL_1, INPUT_PULLUP); //pull up in adc
+  pinMode( DIG_CONTROL_2, INPUT_PULLUP);
+  pinMode( DIG_CONTROL_3, INPUT_PULLUP);
+  pinMode( DIG_CONTROL_4, INPUT_PULLUP);
 }
 
 void controller_init( controller_t* ct, enum ctr_type mode, int pin ) {
   ct->mode = mode;
   ct->pin = pin;
-  ct->delta_analog = DELTA_ANALOG;
-}
-
-void controller_init_esp_now( controller_t* ct, enum ctr_type mode, int data_player ) {  //gurues
-  ct->mode = mode;
-  ct->ESP_NOW_CONTROL = data_player;
   ct->delta_analog = DELTA_ANALOG;
 }
 
@@ -83,4 +73,3 @@ float controller_getAccel ( void ) {
 bool controller_isActive( int pin ) {
     return !digitalRead( pin );
 }
-

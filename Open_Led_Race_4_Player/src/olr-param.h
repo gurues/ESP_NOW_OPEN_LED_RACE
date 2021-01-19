@@ -10,8 +10,8 @@ extern "C"{
 #include <stdint.h>
 #include <stdbool.h>
 
-#define MAXLED       300 
-#define BOXLEN        60 
+#define MAXLED       600 
+#define BOXLEN        30 
 #define NUMLAP         5 
 
 

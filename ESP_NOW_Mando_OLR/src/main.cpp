@@ -8,14 +8,19 @@
 */
 
 #include <Arduino.h>
-#include <ESP8266WiFi.h>
-#include <espnow.h>
+#ifdef ESP32
+  #include <WiFi.h>
+  #include <esp_now.h>
+#else
+  #include <ESP8266WiFi.h>
+  #include <espnow.h>
+#endif
 
 // Descomentar para realizar Degug por el puerto serie
 #define DEBUG_Mando_OLR
 
 // Gateway_ESPNOW MAC Address
-uint8_t broadcastAddress[] = {0x48, 0x3F, 0xDA, 0x95, 0x9D, 0x05};
+uint8_t broadcastAddress[] = {0x00, 0x00, 0x00, 0x0, 0x00, 0x00};
 
 // Indica el número del mando del jugador a configurar: 
 // 1 -> Jugador 1   Rojo
@@ -24,8 +29,13 @@ uint8_t broadcastAddress[] = {0x48, 0x3F, 0xDA, 0x95, 0x9D, 0x05};
 // 4 -> Jugador 4   Blanco
 #define JUGADOR 1
 
-#define pulsador  D1            // pulsador del mando
-#define led       D4            // Led de control placa Wemos
+#ifdef ESP32
+  #define pulsador  22            // pulsador del mando
+  #define led       16            // Led de control placa 
+#else
+  #define pulsador  D1            // pulsador del mando
+  #define led       D4           // Led de control placa Wemos
+#endif
 
 // Estructura de los datos a enviar
 // Debe de ser la misma que el receptor
@@ -42,19 +52,30 @@ bool dato = false;                  // flag para que solo envia 1 dato hasta la 
 bool envio = true;                  // dato a enviar
 
 
-// Callback cuando el dato es enviado
-void OnDataSent(uint8_t *mac_addr, uint8_t sendStatus) {
-  enviado = true;
-  #ifdef DEBUG_Mando_OLR
-    Serial.print("\r\nEstado ultimo mensaje: ");
-    if (sendStatus == 0){
-      Serial.println("Dato enviado");
-    }
-    else{
-      Serial.println("Fallo de envio");
-    }
-  #endif
-}
+#ifdef ESP32
+  // Callback cuando el dato es enviado
+  void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
+    enviado = true;
+    #ifdef DEBUG_Mando_OLR
+      Serial.print("\r\nEstado ultimo mensaje: ");
+      Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Dato enviado" : "Fallo de envio");
+    #endif
+  }
+#else
+  // Callback cuando el dato es enviado
+  void OnDataSent(uint8_t *mac_addr, uint8_t sendStatus) {
+    enviado = true;
+    #ifdef DEBUG_Mando_OLR
+      Serial.print("\r\nEstado ultimo mensaje: ");
+      if (sendStatus == 0){
+        Serial.println("Dato enviado");
+      }
+      else{
+        Serial.println("Fallo de envio");
+      }
+    #endif
+  }
+#endif
 
 // Gestiona la interrupción de tarjeta NFC presente
 void ICACHE_RAM_ATTR IRQ_ISR(){
@@ -87,14 +108,30 @@ void setup() {
     #endif
     return;
   } 
-  // Set ESP-NOW rol: Remitente -> Mando
-  esp_now_set_self_role(ESP_NOW_ROLE_CONTROLLER);
-
-  // Registro callback de envio mensaje
-  esp_now_register_send_cb(OnDataSent);
   
-  // Emparejar Remitente (Mando) con Receptor
-  esp_now_add_peer(broadcastAddress, ESP_NOW_ROLE_SLAVE, 1, NULL, 0);
+  #ifdef ESP32
+    // Registro callback de envio mensaje
+    esp_now_register_send_cb(OnDataSent);
+
+    //Emparejo emisor y receptor
+    esp_now_peer_info_t peerInfo;
+    memcpy(peerInfo.peer_addr, broadcastAddress, 6);
+    peerInfo.channel = 0;
+    peerInfo.encrypt = false;
+    if (esp_now_add_peer(&peerInfo) != ESP_OK){
+      Serial.println("Fallo al emparejarse con el receptor");
+      return;
+    }
+  #else
+    // Set ESP-NOW rol: Remitente -> Mando
+    esp_now_set_self_role(ESP_NOW_ROLE_CONTROLLER);
+
+    // Registro callback de envio mensaje
+    esp_now_register_send_cb(OnDataSent);
+    
+    // Emparejar Remitente (Mando) con Receptor
+    esp_now_add_peer(broadcastAddress, ESP_NOW_ROLE_SLAVE, 1, NULL, 0);
+  #endif
 
   // Activo interrupciones
   attachInterrupt(digitalPinToInterrupt(pulsador), IRQ_ISR, FALLING);

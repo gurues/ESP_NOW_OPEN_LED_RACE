@@ -26,7 +26,6 @@ enum ctr_type{
     DIGITAL_MODE,
     ANALOG_MODE,
     DEBUG_MODE,
-    ESP_NOW_MODE,    // gurues
 };
 
 typedef struct{
@@ -36,15 +35,11 @@ typedef struct{
     int badc;
     int delta_analog;
     byte flag_sw;
-    //gurues
-    int ESP_NOW_CONTROL; // switch player ESP NOW comunication
 }controller_t;    
 
 void controller_setup( void );
 
 void controller_init( controller_t* ct, enum ctr_type mode, int pin );
-
-void controller_init_esp_now( controller_t* ct, enum ctr_type mode, int data_player);    // gurues
 
 byte controller_getStatus( controller_t* ct );
 
